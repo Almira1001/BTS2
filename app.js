@@ -7602,18 +7602,19 @@ function saveInlineDetails(orderId) {
 }
 // ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- FUNGSI SINKRONISASI FIREBASE (VERSI ANTI GAGAL) ---
+// --- FUNGSI SINKRONISASI FIREBASE (VERSI PERBAIKAN TOTAL) ---
 async function syncDataFromFirebase() {
   try {
-    // 🔥 KUNCI: Paksa gunakan window.db yang dari index.html
-    const firestoreDb = window.db;
+    // 🔥 GUNAKAN window.db LANGSUNG BIAR TIDAK ERROR
+    const currentDb = window.db; 
     
-    if (!firestoreDb) {
-      console.log("⚠️ Database belum siap, mencoba lagi dalam 1 detik...");
+    if (!currentDb) {
+      console.log("⚠️ Database belum siap sepenuhnya.");
       return;
     }
 
-    const querySnapshot = await getDocs(collection(firestoreDb, "orders"));
+    // Ambil referensi collection dari window.db
+    const querySnapshot = await getDocs(collection(currentDb, "orders"));
     const cloudOrders = [];
     
     querySnapshot.forEach((doc) => {
@@ -7631,17 +7632,10 @@ async function syncDataFromFirebase() {
       saveState();
       render(); 
       console.log("✅ Sinkronisasi Berhasil! Data Cloud masuk.");
+    } else {
+      console.log("ℹ️ Database Cloud masih kosong.");
     }
   } catch (e) {
     console.error("❌ Gagal sinkron:", e);
   }
 }
-
-// 🔥 LOGIKA PENJAGA: Cek tiap 1 detik, kalau db sudah ada & user login, baru jalan
-const checkDbInterval = setInterval(() => {
-  if (window.db && state.authenticated) {
-    console.log("🚀 Database Terkoneksi! Memulai Sinkronisasi...");
-    syncDataFromFirebase();
-    clearInterval(checkDbInterval); // Berhenti cek kalau sudah jalan
-  }
-}, 1000);
