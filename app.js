@@ -1,4 +1,4 @@
-F// Trucking Planner SPA
+// Trucking Planner SPA
 // State & persistence
 // Menghubungkan variabel db dari index.html
 const db = window.db; 
