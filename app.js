@@ -2059,7 +2059,7 @@ function buildReconciliationSummary() {
   const yesterdayData = getReconciliationDataForDate(yesterdayISO);
   const todayData = getReconciliationDataForDate(todayISO);
   const tomorrowData = getReconciliationDataForDate(tomorrowISO);
-  
+
   return `
     <div class="card" style="margin-top: 16px;">
       <h3 style="margin:0 0 12px 0">📊 Summary Reconciliation</h3>
@@ -3430,68 +3430,99 @@ createOrderBtn.onclick = async () => {
       closeModal();
     };
 
-// GANTI BLOK confirmOrderBtn.onclick LAMA DENGAN INI
+    // Event handler untuk button konfirmasi - PROSES ORDER DI SINI
 document.getElementById("confirmOrderBtn").onclick = async () => {
-    const oid = genId("ORD");
-    
-    // 1. Siapkan Data Containers dulu
-    const orderContainers = [];
-    const addContsToArr = (qty, sz) => {
-        for (let i = 0; i < qty; i++) {
-            orderContainers.push({
-                no: orderContainers.length + 1,
-                size: sz,
-                accept: null,
-                no_container: "",
-                no_seal: "",
-                no_mobil: "",
-                nama_supir: "",
-                contact: "",
-                depo: "",
-                status: STATUS_TRUCKING[0]
-            });
-        }
-    };
-    if (j20 > 0) addContsToArr(j20, "20ft");
-    if (j40 > 0) addContsToArr(j40, "40ft/HC");
-    if (jCombo > 0) addContsToArr(jCombo, "Combo");
-
-    const order = {
+        // Buat order
+      const oid = genId("ORD");
+      const order = {
         order_id: oid,
         vendor,
         tgl_stuffing: tgl_stuff,
         closing_date,
         closing_time,
+        open_cy,
         no_dn,
+        shipping_point,
+        pod,
+        terminal,
+        depo,
+        shift,
+        remarks,
+        etd,
         jml_20ft: j20,
         jml_40ft: j40,
         jml_combo: jCombo,
-        containers: orderContainers, // 🔥 SEKARANG CONTAINERS IKUT DIKIRIM
         created_at: new Date().toISOString(),
-        summary_status: "Pending"
-    };
+        summary_status: "Pending",
+        availability_reserved: true
+      };
 
-    // 2. Simpan ke Local dan Cloud
-    state.orders.push(order);
-    state.containers[oid] = orderContainers; 
-
+      state.orders.push(order);
+      // --- SIMPAN KE FIREBASE DATABASE ---
     try {
-        // Gunakan db yang sudah diimport di atas
         const { collection, addDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
         await addDoc(collection(window.db, "orders"), {
             ...order,
             timestamp: serverTimestamp()
         });
-        toast("✅ Berhasil! Data tersimpan di Cloud.");
+        toast("✅ Data tersimpan di Cloud Database!");
     } catch (e) {
-        console.error("Firebase Error:", e);
-        toast("⚠️ Gagal Simpan ke Cloud, tapi tersimpan di Local.");
+        console.error("Gagal simpan ke Firebase:", e);
+        toast("⚠️ Gagal sinkron ke Cloud.");
     }
+    // ------------------------------------
+      state.containers[oid] = [];
 
-    saveState();
-    closeModal();
-    render();
-};
+      const addConts = (qty, sz) => {
+        for (let i = 0; i < qty; i++) {
+          state.containers[oid].push({
+            no: state.containers[oid].length + 1,
+            size: sz,
+            accept: null,
+            no_container: "",
+            no_seal: "",
+            no_mobil: "",
+            nama_supir: "",
+            contact: "",
+            depo: "",
+            status: STATUS_TRUCKING[0]
+          });
+        }
+      };
+
+      if (j20 > 0) addConts(j20, "20ft");
+      if (j40 > 0) addConts(j40, "40ft/HC");
+      if (jCombo > 0) addConts(jCombo, "Combo");
+      state.order_vendor_prefill = null;
+
+      // Kurangi ketersediaan
+      if (tgl_stuff && state.availability[tgl_stuff]) {
+        const vendorAvail = state.availability[tgl_stuff][vendor];
+        if (vendorAvail) {
+          vendorAvail["20ft"] = Math.max(0, Number(vendorAvail["20ft"] || 0) - j20);
+          vendorAvail["40ft/HC"] = Math.max(0, Number(vendorAvail["40ft/HC"] || 0) - j40);
+          vendorAvail["Combo"] = Math.max(0, Number(vendorAvail["Combo"] || 0) - jCombo);
+        }
+      }
+
+      const totalContainers = j20 + j40 + jCombo;
+      state.notifications.push({
+        id: genId("NOTIF"),
+        message: `Order baru DN ${order.no_dn.join(' & ')} (${totalContainers} kontainer) masuk dari Indah Kiat Karawang.`,
+        timestamp: new Date().toISOString(),
+        isRead: false,
+        role: 'vendor',
+        targetVendor: vendor,
+        relatedOrder: oid,
+        link: 'Orderan'
+      });
+      
+      saveState();
+      closeModal(); // Tutup modal
+      renderAdminOrder(); // Refresh halaman
+      toast(`✓ Order berhasil dibuat: ${oid}`);
+    };
+  };
 
   // ============================================================
   // REKAP FUNCTION
@@ -6815,7 +6846,6 @@ function renderContainerRevo() {
         toast("Ekspor Container Revo berhasil.");
     };
 }
-
 /* ===================== REVISI 5: ADMIN STATUS (EDIT/HAPUS & SHIFT) ===================== */
 
 function buildStatusTable() {
@@ -7562,16 +7592,17 @@ function saveInlineDetails(orderId) {
             
             c.no_container = containerValue;
         }
-c.depo = document.getElementById(`c_depo_${orderId}_${i}`).value.trim();
+        c.depo = document.getElementById(`c_depo_${orderId}_${i}`).value.trim();
         c.status = document.getElementById(`c_status_${orderId}_${i}`).value;
     });
 
     saveState();
     toast("Detail berhasil disimpan.");
-    renderVendorListDetail(); 
+    renderVendorListDetail(); // Refresh tampilan
 }
+// ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- FUNGSI SINKRONISASI FIREBASE ---
+// --- TAMBAHKAN KODE NOMOR 3 DI SINI (DI LUAR FUNGSI APAPUN) ---
 async function syncDataFromFirebase() {
   try {
     const querySnapshot = await getDocs(collection(db, "orders"));
@@ -7581,12 +7612,13 @@ async function syncDataFromFirebase() {
     });
     
     if (cloudOrders.length > 0) {
+      // Urutkan data berdasarkan waktu jika perlu, lalu masukkan ke state
       state.orders = cloudOrders;
       saveState();
-      render(); 
+      render(); // Render ulang UI dengan data terbaru dari Cloud
     }
   } catch (e) {
-    console.error("Gagal sinkron awal:", e);
+    console.log("Gagal sinkron awal:", e);
   }
 }
 
