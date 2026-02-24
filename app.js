@@ -3430,99 +3430,68 @@ createOrderBtn.onclick = async () => {
       closeModal();
     };
 
-    // Event handler untuk button konfirmasi - PROSES ORDER DI SINI
+// GANTI BLOK confirmOrderBtn.onclick LAMA DENGAN INI
 document.getElementById("confirmOrderBtn").onclick = async () => {
-        // Buat order
-      const oid = genId("ORD");
-      const order = {
+    const oid = genId("ORD");
+    
+    // 1. Siapkan Data Containers dulu
+    const orderContainers = [];
+    const addContsToArr = (qty, sz) => {
+        for (let i = 0; i < qty; i++) {
+            orderContainers.push({
+                no: orderContainers.length + 1,
+                size: sz,
+                accept: null,
+                no_container: "",
+                no_seal: "",
+                no_mobil: "",
+                nama_supir: "",
+                contact: "",
+                depo: "",
+                status: STATUS_TRUCKING[0]
+            });
+        }
+    };
+    if (j20 > 0) addContsToArr(j20, "20ft");
+    if (j40 > 0) addContsToArr(j40, "40ft/HC");
+    if (jCombo > 0) addContsToArr(jCombo, "Combo");
+
+    const order = {
         order_id: oid,
         vendor,
         tgl_stuffing: tgl_stuff,
         closing_date,
         closing_time,
-        open_cy,
         no_dn,
-        shipping_point,
-        pod,
-        terminal,
-        depo,
-        shift,
-        remarks,
-        etd,
         jml_20ft: j20,
         jml_40ft: j40,
         jml_combo: jCombo,
+        containers: orderContainers, // 🔥 SEKARANG CONTAINERS IKUT DIKIRIM
         created_at: new Date().toISOString(),
-        summary_status: "Pending",
-        availability_reserved: true
-      };
+        summary_status: "Pending"
+    };
 
-      state.orders.push(order);
-      // --- SIMPAN KE FIREBASE DATABASE ---
+    // 2. Simpan ke Local dan Cloud
+    state.orders.push(order);
+    state.containers[oid] = orderContainers; 
+
     try {
+        // Gunakan db yang sudah diimport di atas
         const { collection, addDoc, serverTimestamp } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
         await addDoc(collection(window.db, "orders"), {
             ...order,
             timestamp: serverTimestamp()
         });
-        toast("✅ Data tersimpan di Cloud Database!");
+        toast("✅ Berhasil! Data tersimpan di Cloud.");
     } catch (e) {
-        console.error("Gagal simpan ke Firebase:", e);
-        toast("⚠️ Gagal sinkron ke Cloud.");
+        console.error("Firebase Error:", e);
+        toast("⚠️ Gagal Simpan ke Cloud, tapi tersimpan di Local.");
     }
-    // ------------------------------------
-      state.containers[oid] = [];
 
-      const addConts = (qty, sz) => {
-        for (let i = 0; i < qty; i++) {
-          state.containers[oid].push({
-            no: state.containers[oid].length + 1,
-            size: sz,
-            accept: null,
-            no_container: "",
-            no_seal: "",
-            no_mobil: "",
-            nama_supir: "",
-            contact: "",
-            depo: "",
-            status: STATUS_TRUCKING[0]
-          });
-        }
-      };
-
-      if (j20 > 0) addConts(j20, "20ft");
-      if (j40 > 0) addConts(j40, "40ft/HC");
-      if (jCombo > 0) addConts(jCombo, "Combo");
-      state.order_vendor_prefill = null;
-
-      // Kurangi ketersediaan
-      if (tgl_stuff && state.availability[tgl_stuff]) {
-        const vendorAvail = state.availability[tgl_stuff][vendor];
-        if (vendorAvail) {
-          vendorAvail["20ft"] = Math.max(0, Number(vendorAvail["20ft"] || 0) - j20);
-          vendorAvail["40ft/HC"] = Math.max(0, Number(vendorAvail["40ft/HC"] || 0) - j40);
-          vendorAvail["Combo"] = Math.max(0, Number(vendorAvail["Combo"] || 0) - jCombo);
-        }
-      }
-
-      const totalContainers = j20 + j40 + jCombo;
-      state.notifications.push({
-        id: genId("NOTIF"),
-        message: `Order baru DN ${order.no_dn.join(' & ')} (${totalContainers} kontainer) masuk dari Indah Kiat Karawang.`,
-        timestamp: new Date().toISOString(),
-        isRead: false,
-        role: 'vendor',
-        targetVendor: vendor,
-        relatedOrder: oid,
-        link: 'Orderan'
-      });
-      
-      saveState();
-      closeModal(); // Tutup modal
-      renderAdminOrder(); // Refresh halaman
-      toast(`✓ Order berhasil dibuat: ${oid}`);
-    };
-  };
+    saveState();
+    closeModal();
+    render();
+};
 
   // ============================================================
   // REKAP FUNCTION
@@ -7608,18 +7577,25 @@ async function syncDataFromFirebase() {
   try {
     const querySnapshot = await getDocs(collection(db, "orders"));
     const cloudOrders = [];
+    
     querySnapshot.forEach((doc) => {
-      cloudOrders.push(doc.data());
+      const data = doc.data();
+      cloudOrders.push(data);
+      
+      // 🔥 RESTORE: Masukkan kembali containers ke state aplikasi
+      if (data.order_id && data.containers) {
+        state.containers[data.order_id] = data.containers;
+      }
     });
     
     if (cloudOrders.length > 0) {
-      // Urutkan data berdasarkan waktu jika perlu, lalu masukkan ke state
       state.orders = cloudOrders;
       saveState();
-      render(); // Render ulang UI dengan data terbaru dari Cloud
+      render();
+      console.log("🔄 Sinkronisasi Cloud Berhasil!");
     }
   } catch (e) {
-    console.log("Gagal sinkron awal:", e);
+    console.error("Gagal sinkron:", e);
   }
 }
 
