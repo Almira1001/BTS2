@@ -6847,64 +6847,6 @@ function renderContainerRevo() {
     };
 }
 
-/* ===================== VENDOR: ORDERAN (Accept/Reject Order - REVISI 1) ===================== */
-// --- BARU: Helper untuk menampilkan Modal Detail Kontainer (Dipanggil dari Tabel Rekap Vendor) ---
-function showContainerActionModal(orderId, containerIndex) {
-    const order = state.orders.find(o => o.order_id === orderId);
-    const container = state.containers[orderId][containerIndex];
-    if (!order || !container) return;
-
-    let actionButtons;
-    let statusBadge;
-    
-    if (container.accept === true) {
-        actionButtons = `<button class="btn danger full" data-action="reject">Batalkan Accept</button>`;
-        statusBadge = `<span class="badge success">ACCEPTED</span>`;
-    } else if (container.accept === false) {
-        actionButtons = `<button class="btn success full" data-action="accept">Batalkan Reject</button>`;
-        statusBadge = `<span class="badge danger">REJECTED</span>`;
-    } else {
-        actionButtons = `
-            <button class="btn success full" data-action="accept">Accept Order</button>
-            <button class="btn danger full" data-action="reject" style="margin-top: 8px;">Reject Order</button>
-        `;
-        statusBadge = `<span class="badge warn">PENDING</span>`;
-    }
-
-    const modalHtml = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h4 style="margin: 0 0 5px 0;">Kontainer #${container.no} (${container.size})</h4>
-            ${statusBadge}
-        </div>
-        <div class="form-section">
-             <div class="section-title">Detail Order</div>
-             <div style="font-size: 0.9rem; line-height: 1.6;">
-                <p>DN: <b>${(order.no_dn || []).join(' & ')}</b></p>
-                <p>Stuffing: <b>${formatDisplayDate(order.tgl_stuffing)}</b></p>
-                <p>Closing CY: <b>${fmtDT(order.closing_date, order.closing_time)}</b></p>
-                <p>Shipping Point: <b>${order.shipping_point}</b></p>
-                <p>Remarks Admin: ${order.remarks || '-'}</p>
-             </div>
-        </div>
-        
-        <div style="margin-top: 15px;">
-            ${actionButtons}
-        </div>
-    `;
-
-    openModal(`Aksi Kontainer #${container.no}`, modalHtml, {
-        closeBtnText: 'Tutup',
-        closeBtnClass: 'secondary',
-        setupListeners: (modalBody) => {
-            modalBody.querySelectorAll('button[data-action]').forEach(btn => {
-                btn.onclick = () => {
-                    handleContainerAction(orderId, containerIndex, btn.dataset.action);
-                };
-            });
-        }
-    });
-}
-
 function renderVendorOrderan() {
     const vendor = state.vendor_name;
 
