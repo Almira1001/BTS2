@@ -7562,40 +7562,31 @@ function saveInlineDetails(orderId) {
             
             c.no_container = containerValue;
         }
-        c.depo = document.getElementById(`c_depo_${orderId}_${i}`).value.trim();
+c.depo = document.getElementById(`c_depo_${orderId}_${i}`).value.trim();
         c.status = document.getElementById(`c_status_${orderId}_${i}`).value;
     });
 
     saveState();
     toast("Detail berhasil disimpan.");
-    renderVendorListDetail(); // Refresh tampilan
+    renderVendorListDetail(); 
 }
-// ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- TAMBAHKAN KODE NOMOR 3 DI SINI (DI LUAR FUNGSI APAPUN) ---
+// --- FUNGSI SINKRONISASI FIREBASE ---
 async function syncDataFromFirebase() {
   try {
     const querySnapshot = await getDocs(collection(db, "orders"));
     const cloudOrders = [];
-    
     querySnapshot.forEach((doc) => {
-      const data = doc.data();
-      cloudOrders.push(data);
-      
-      // 🔥 RESTORE: Masukkan kembali containers ke state aplikasi
-      if (data.order_id && data.containers) {
-        state.containers[data.order_id] = data.containers;
-      }
+      cloudOrders.push(doc.data());
     });
     
     if (cloudOrders.length > 0) {
       state.orders = cloudOrders;
       saveState();
-      render();
-      console.log("🔄 Sinkronisasi Cloud Berhasil!");
+      render(); 
     }
   } catch (e) {
-    console.error("Gagal sinkron:", e);
+    console.error("Gagal sinkron awal:", e);
   }
 }
 
