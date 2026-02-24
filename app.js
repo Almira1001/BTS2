@@ -7602,27 +7602,43 @@ function saveInlineDetails(orderId) {
 }
 // ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- TAMBAHKAN KODE NOMOR 3 DI SINI (DI LUAR FUNGSI APAPUN) ---
+// --- FUNGSI SINKRONISASI FIREBASE (VERSI FINAL) ---
 async function syncDataFromFirebase() {
   try {
-    const querySnapshot = await getDocs(collection(db, "orders"));
+    // Gunakan window.db agar tidak undefined
+    if (!window.db) {
+        console.log("⏳ Menunggu koneksi database...");
+        return;
+    }
+
+    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
+    const querySnapshot = await getDocs(collection(window.db, "orders"));
     const cloudOrders = [];
+    
     querySnapshot.forEach((doc) => {
-      cloudOrders.push(doc.data());
+      const data = doc.data();
+      cloudOrders.push(data);
+      // Restore data container ke state
+      if (data.order_id && data.containers) {
+        state.containers[data.order_id] = data.containers;
+      }
     });
     
     if (cloudOrders.length > 0) {
-      // Urutkan data berdasarkan waktu jika perlu, lalu masukkan ke state
       state.orders = cloudOrders;
       saveState();
-      render(); // Render ulang UI dengan data terbaru dari Cloud
+      render(); 
+      console.log("✅ Data sinkron! Total:", cloudOrders.length);
     }
   } catch (e) {
-    console.log("Gagal sinkron awal:", e);
+    console.error("❌ Gagal sinkron awal:", e);
   }
-}
+} // <--- Penutup fungsi yang benar
 
-// Jalankan otomatis jika user sudah login
-if (state.authenticated) {
-  syncDataFromFirebase();
-}
+// Jalankan otomatis dengan interval pengecekan database siap
+const readyCheck = setInterval(() => {
+    if (window.db && state.authenticated) {
+        syncDataFromFirebase();
+        clearInterval(readyCheck);
+    }
+}, 1000);
