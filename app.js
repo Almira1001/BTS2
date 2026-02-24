@@ -1,4 +1,4 @@
-// Trucking Planner SPA
+F// Trucking Planner SPA
 // State & persistence
 // Menghubungkan variabel db dari index.html
 const db = window.db; 
@@ -2565,11 +2565,6 @@ function getShiftUsedSlots(dateISO, shiftNumber) {
   return usedSlots;
 }
 
-// Fungsi menghitung sisa slot per shift
-function getShiftAvailableSlots(dateISO, shiftNumber) {
-  const used = getShiftUsedSlots(dateISO, shiftNumber);
-  return SHIFT_MAX_CAPACITY - used;
-}
 // Fungsi menghitung sisa slot per shift
 function getShiftAvailableSlots(dateISO, shiftNumber) {
   const used = getShiftUsedSlots(dateISO, shiftNumber);
