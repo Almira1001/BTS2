@@ -2570,11 +2570,6 @@ function getShiftAvailableSlots(dateISO, shiftNumber) {
   const used = getShiftUsedSlots(dateISO, shiftNumber);
   return SHIFT_MAX_CAPACITY - used;
 }
-// Fungsi menghitung sisa slot per shift
-function getShiftAvailableSlots(dateISO, shiftNumber) {
-  const used = getShiftUsedSlots(dateISO, shiftNumber);
-  return SHIFT_MAX_CAPACITY - used;
-}
 
 // ✅ FUNGSI RESTORE KETERSEDIAAN SAAT REJECT
 function restoreAvailability(orderId) {
