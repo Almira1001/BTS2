@@ -7602,23 +7602,25 @@ function saveInlineDetails(orderId) {
 }
 // ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- FUNGSI SINKRONISASI FIREBASE (VERSI FINAL) ---
+// --- FUNGSI SINKRONISASI FIREBASE (VERSI ANTI GAGAL) ---
 async function syncDataFromFirebase() {
   try {
-    // Gunakan window.db agar tidak undefined
-    if (!window.db) {
-        console.log("⏳ Menunggu koneksi database...");
-        return;
+    // 🔥 KUNCI: Paksa gunakan window.db yang dari index.html
+    const firestoreDb = window.db;
+    
+    if (!firestoreDb) {
+      console.log("⚠️ Database belum siap, mencoba lagi dalam 1 detik...");
+      return;
     }
 
-    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
-    const querySnapshot = await getDocs(collection(window.db, "orders"));
+    const querySnapshot = await getDocs(collection(firestoreDb, "orders"));
     const cloudOrders = [];
     
     querySnapshot.forEach((doc) => {
       const data = doc.data();
       cloudOrders.push(data);
-      // Restore data container ke state
+      
+      // Kembalikan data container agar tidak hilang saat refresh
       if (data.order_id && data.containers) {
         state.containers[data.order_id] = data.containers;
       }
@@ -7628,17 +7630,18 @@ async function syncDataFromFirebase() {
       state.orders = cloudOrders;
       saveState();
       render(); 
-      console.log("✅ Data sinkron! Total:", cloudOrders.length);
+      console.log("✅ Sinkronisasi Berhasil! Data Cloud masuk.");
     }
   } catch (e) {
-    console.error("❌ Gagal sinkron awal:", e);
+    console.error("❌ Gagal sinkron:", e);
   }
-} // <--- Penutup fungsi yang benar
+}
 
-// Jalankan otomatis dengan interval pengecekan database siap
-const readyCheck = setInterval(() => {
-    if (window.db && state.authenticated) {
-        syncDataFromFirebase();
-        clearInterval(readyCheck);
-    }
+// 🔥 LOGIKA PENJAGA: Cek tiap 1 detik, kalau db sudah ada & user login, baru jalan
+const checkDbInterval = setInterval(() => {
+  if (window.db && state.authenticated) {
+    console.log("🚀 Database Terkoneksi! Memulai Sinkronisasi...");
+    syncDataFromFirebase();
+    clearInterval(checkDbInterval); // Berhenti cek kalau sudah jalan
+  }
 }, 1000);
