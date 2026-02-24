@@ -7603,4 +7603,3 @@ async function syncDataFromFirebase() {
 if (state.authenticated) {
   syncDataFromFirebase();
 }
-// -------------------------------------------------------------
