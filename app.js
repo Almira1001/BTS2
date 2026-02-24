@@ -4458,6 +4458,7 @@ function showVendorAvailabilityModal(dateStr) {
     closeBtnText: '✓ Simpan',
     closeBtnClass: 'primary',
 // GANTI BAGIAN onClose DI DALAM showVendorAvailabilityModal
+// GANTI BAGIAN onClose DI DALAM showVendorAvailabilityModal (Baris ~4455)
 onClose: async () => {
   const a20 = Number(document.getElementById("modal_av20").value||0);
   const a40 = Number(document.getElementById("modal_av40").value||0);
@@ -4465,28 +4466,30 @@ onClose: async () => {
   
   const availabilityData = {"20ft": a20, "40ft/HC": a40, "Combo": aCombo};
 
-  // 1. Update State Lokal
+  // 1. Update di tampilan lokal
   state.availability[dateStr] = state.availability[dateStr] || {};
   state.availability[dateStr][vendor] = availabilityData;
 
-  // 2. KIRIM KE FIREBASE (Agar Admin Bisa Lihat)
+  // 2. KIRIM LANGSUNG KE FIREBASE (Jalur window.db)
   try {
-    if (!window.db) throw new Error("Database belum terkoneksi");
+    // Pastikan koneksi tersedia
+    const currentDb = window.db; 
+    if (!currentDb) throw new Error("Koneksi Database (window.db) hilang!");
 
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
     
-    // Simpan ke collection "availability" dengan ID: Tanggal_NamaVendor
-    await setDoc(doc(window.db, "availability", `${dateStr}_${vendor}`), {
+    // Simpan dengan ID Unik: Tanggal_NamaVendor
+    await setDoc(doc(currentDb, "availability", `${dateStr}_${vendor}`), {
       vendor: vendor,
       date: dateStr,
       ...availabilityData,
-      timestamp: new Date().toISOString()
+      lastUpdate: new Date().toISOString()
     });
 
-    toast(`✅ Ketersediaan tersimpan di Cloud!`);
+    toast(`✅ Berhasil! Ketersediaan ${vendor} tersimpan di Cloud.`);
   } catch (e) {
-    console.error("Gagal simpan ketersediaan ke Cloud:", e);
-    toast("⚠️ Hanya tersimpan lokal (cek koneksi)");
+    console.error("🔴 Gagal kirim ke Google:", e);
+    toast("⚠️ Gagal sinkron ke Cloud (Cek koneksi internet)");
   }
   
   saveState();
