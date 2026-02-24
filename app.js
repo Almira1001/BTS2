@@ -286,12 +286,15 @@ function openModal(title, html, options = {}){
   }
 }
 function closeModal(){
-  const m = document.getElementById('modal'); if(!m) return;
-  m.classList.remove('show'); m.setAttribute('aria-hidden','true');
+  const m = document.getElementById('modal'); 
+  if(!m) return;
+  
+  // Pindahkan fokus kursor ke body sebelum sembunyikan modal
+  document.body.focus(); 
+  
+  m.classList.remove('show'); 
+  m.setAttribute('aria-hidden','true');
 }
-document.addEventListener('click', (e)=>{
-  if(e.target && e.target.hasAttribute('data-close')) closeModal();
-});
 
 // ====================================================================
 // --- BARU: FUNGSI LONCENG NOTIFIKASI (REVISI 4: BOLD/BADGE) ---
@@ -4454,33 +4457,42 @@ function showVendorAvailabilityModal(dateStr) {
   openModal(`Ketersediaan - ${vendor}`, modalHtml, {
     closeBtnText: '✓ Simpan',
     closeBtnClass: 'primary',
-    onClose: () => {
-      const a20 = Number(document.getElementById("modal_av20").value||0);
-      const a40 = Number(document.getElementById("modal_av40").value||0);
-      const aCombo = Number(document.getElementById("modal_avCombo").value||0);
-      
-      const oldAvail = (state.availability[dateStr] || {})[vendor] || {"20ft":0, "40ft/HC":0, "Combo":0};
-      
-      state.availability[dateStr] = state.availability[dateStr] || {};
-      state.availability[dateStr][vendor] = {"20ft":a20, "40ft/HC":a40, "Combo":aCombo};
-      
-      const totalChange = (a20 - oldAvail["20ft"]) + (a40 - oldAvail["40ft/HC"]) + (aCombo - oldAvail["Combo"]);
-      if (totalChange !== 0) {
-        state.notifications.push({
-          id: genId("NOTIF"),
-          message: `EMKL ${vendor} telah memperbarui ketersediaan untuk tanggal ${formatDisplayDate(dateStr)}.`,
-          timestamp: new Date().toISOString(),
-          isRead: false,
-          role: 'admin',
-          link: 'Home'
-        });
-      }
-      
-      saveState();
-      closeModal();
-      renderVendorHome();
-      toast(`✅ Ketersediaan ${vendor} untuk ${formatDisplayDate(dateStr)} berhasil diperbarui.`);
-    }
+// GANTI BAGIAN onClose DI DALAM showVendorAvailabilityModal
+onClose: async () => {
+  const a20 = Number(document.getElementById("modal_av20").value||0);
+  const a40 = Number(document.getElementById("modal_av40").value||0);
+  const aCombo = Number(document.getElementById("modal_avCombo").value||0);
+  
+  const availabilityData = {"20ft": a20, "40ft/HC": a40, "Combo": aCombo};
+
+  // 1. Update State Lokal
+  state.availability[dateStr] = state.availability[dateStr] || {};
+  state.availability[dateStr][vendor] = availabilityData;
+
+  // 2. KIRIM KE FIREBASE (Agar Admin Bisa Lihat)
+  try {
+    if (!window.db) throw new Error("Database belum terkoneksi");
+
+    const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
+    
+    // Simpan ke collection "availability" dengan ID: Tanggal_NamaVendor
+    await setDoc(doc(window.db, "availability", `${dateStr}_${vendor}`), {
+      vendor: vendor,
+      date: dateStr,
+      ...availabilityData,
+      timestamp: new Date().toISOString()
+    });
+
+    toast(`✅ Ketersediaan tersimpan di Cloud!`);
+  } catch (e) {
+    console.error("Gagal simpan ketersediaan ke Cloud:", e);
+    toast("⚠️ Hanya tersimpan lokal (cek koneksi)");
+  }
+  
+  saveState();
+  closeModal();
+  renderVendorHome();
+}
   });
 }  
   draw(year, month);
@@ -7605,37 +7617,38 @@ function saveInlineDetails(orderId) {
 // --- FUNGSI SINKRONISASI FIREBASE (VERSI PERBAIKAN TOTAL) ---
 async function syncDataFromFirebase() {
   try {
-    // 🔥 GUNAKAN window.db LANGSUNG BIAR TIDAK ERROR
-    const currentDb = window.db; 
-    
-    if (!currentDb) {
-      console.log("⚠️ Database belum siap sepenuhnya.");
-      return;
-    }
+    const firestoreDb = window.db;
+    if (!firestoreDb) return;
 
-    // Ambil referensi collection dari window.db
-    const querySnapshot = await getDocs(collection(currentDb, "orders"));
-    const cloudOrders = [];
+    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
     
-    querySnapshot.forEach((doc) => {
+    // Tarik Orders
+    const orderSnap = await getDocs(collection(firestoreDb, "orders"));
+    orderSnap.forEach(doc => {
       const data = doc.data();
-      cloudOrders.push(data);
-      
-      // Kembalikan data container agar tidak hilang saat refresh
-      if (data.order_id && data.containers) {
-        state.containers[data.order_id] = data.containers;
+      if (data.order_id) {
+          state.orders = state.orders.filter(o => o.order_id !== data.order_id);
+          state.orders.push(data);
+          if (data.containers) state.containers[data.order_id] = data.containers;
       }
     });
-    
-    if (cloudOrders.length > 0) {
-      state.orders = cloudOrders;
-      saveState();
-      render(); 
-      console.log("✅ Sinkronisasi Berhasil! Data Cloud masuk.");
-    } else {
-      console.log("ℹ️ Database Cloud masih kosong.");
-    }
+
+    // Tarik Ketersediaan (Availability)
+    const availSnap = await getDocs(collection(firestoreDb, "availability"));
+    availSnap.forEach(doc => {
+      const data = doc.data();
+      if (data.date && data.vendor) {
+        state.availability[data.date] = state.availability[data.date] || {};
+        state.availability[data.date][data.vendor] = {
+          "20ft": data["20ft"], "40ft/HC": data["40ft/HC"], "Combo": data["Combo"]
+        };
+      }
+    });
+
+    saveState();
+    render();
+    console.log("✅ Semua data Cloud (Order & Avail) Berhasil Sinkron!");
   } catch (e) {
-    console.error("❌ Gagal sinkron:", e);
+    console.error("❌ Gagal sinkron total:", e);
   }
 }
