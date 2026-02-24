@@ -2059,7 +2059,7 @@ function buildReconciliationSummary() {
   const yesterdayData = getReconciliationDataForDate(yesterdayISO);
   const todayData = getReconciliationDataForDate(todayISO);
   const tomorrowData = getReconciliationDataForDate(tomorrowISO);
-  
+
   return `
     <div class="card" style="margin-top: 16px;">
       <h3 style="margin:0 0 12px 0">📊 Summary Reconciliation</h3>
@@ -6846,250 +6846,6 @@ function renderContainerRevo() {
         toast("Ekspor Container Revo berhasil.");
     };
 }
-
-/* ===================== VENDOR: ORDERAN (Accept/Reject Order - REVISI 1) ===================== */
-
-// --- BARU: Helper untuk menangani Aksi Accept/Reject di Modal Detail Kontainer ---
-function handleContainerAction(orderId, containerIndex, action) {
-    const order = state.orders.find(o => o.order_id === orderId);
-    if (!order || !state.containers[orderId] || !state.containers[orderId][containerIndex]) return;
-    
-    const c = state.containers[orderId][containerIndex];
-    const isAccept = action === 'accept';
-
-    if (isAccept) {
-        c.status = STATUS_TRUCKING.find(s => s.toLowerCase() === 'confirm order') || 'Confirm Order';
-    } else {
-        c.status = STATUS_TRUCKING.find(s => s.toLowerCase() === 'reject') || 'Reject';
-    }
-    
-    c.accept = isAccept;
-    
-    state.notifications.push({
-        id: genId("NOTIF"),
-        message: `${state.vendor_name} merespon kontainer ${c.size} di DN ${(order.no_dn || []).join(' & ')}: ${isAccept ? 'Accepted' : 'Rejected'}.`,
-        timestamp: new Date().toISOString(),
-        isRead: false,
-        role: 'admin',
-        relatedOrder: orderId
-    });
-    
-    updateOrderSummary(orderId);
-    saveState();
-    closeModal();
-    renderVendorOrderan();
-    toast(`Kontainer #${c.no} di- ${isAccept ? 'Accept' : 'Reject'}.`);
-}
-
-// --- BARU: Helper untuk menampilkan Modal Detail Kontainer (Dipanggil dari Tabel Rekap Vendor) ---
-function showContainerActionModal(orderId, containerIndex) {
-    const order = state.orders.find(o => o.order_id === orderId);
-    const container = state.containers[orderId][containerIndex];
-    if (!order || !container) return;
-
-    let actionButtons;
-    let statusBadge;
-    
-    if (container.accept === true) {
-        actionButtons = `<button class="btn danger full" data-action="reject">Batalkan Accept</button>`;
-        statusBadge = `<span class="badge success">ACCEPTED</span>`;
-    } else if (container.accept === false) {
-        actionButtons = `<button class="btn success full" data-action="accept">Batalkan Reject</button>`;
-        statusBadge = `<span class="badge danger">REJECTED</span>`;
-    } else {
-        actionButtons = `
-            <button class="btn success full" data-action="accept">Accept Order</button>
-            <button class="btn danger full" data-action="reject" style="margin-top: 8px;">Reject Order</button>
-        `;
-        statusBadge = `<span class="badge warn">PENDING</span>`;
-    }
-
-    const modalHtml = `
-        <div style="text-align: center; margin-bottom: 20px;">
-            <h4 style="margin: 0 0 5px 0;">Kontainer #${container.no} (${container.size})</h4>
-            ${statusBadge}
-        </div>
-        <div class="form-section">
-             <div class="section-title">Detail Order</div>
-             <div style="font-size: 0.9rem; line-height: 1.6;">
-                <p>DN: <b>${(order.no_dn || []).join(' & ')}</b></p>
-                <p>Stuffing: <b>${formatDisplayDate(order.tgl_stuffing)}</b></p>
-                <p>Closing CY: <b>${fmtDT(order.closing_date, order.closing_time)}</b></p>
-                <p>Shipping Point: <b>${order.shipping_point}</b></p>
-                <p>Remarks Admin: ${order.remarks || '-'}</p>
-             </div>
-        </div>
-        
-        <div style="margin-top: 15px;">
-            ${actionButtons}
-        </div>
-    `;
-
-    openModal(`Aksi Kontainer #${container.no}`, modalHtml, {
-        closeBtnText: 'Tutup',
-        closeBtnClass: 'secondary',
-        setupListeners: (modalBody) => {
-            modalBody.querySelectorAll('button[data-action]').forEach(btn => {
-                btn.onclick = () => {
-                    handleContainerAction(orderId, containerIndex, btn.dataset.action);
-                };
-            });
-        }
-    });
-}
-
-function renderVendorOrderan() {
-    const vendor = state.vendor_name;
-
-    content.innerHTML = `
-        <div class="main-header"><h3>📑 EMKL — Orderan</h3></div>
-    <div class="card">
-        <div class="rekap-wrap">
-            <table class="table rekap" id="vendorOrderTable">
-                <thead>
-                    <tr>
-                        <th rowspan="2">No</th>
-                        <th rowspan="2">DN</th>
-                        <th rowspan="2">EMKL</th>
-                        <th rowspan="2">Tanggal Stuffing</th>
-                        <th rowspan="2">Shipping Point</th>
-                        <th rowspan="2">Country Port (Port)</th>
-                        <th rowspan="2">Terminal</th>
-                        <th rowspan="2">Depo</th>
-                        <th colspan="2" style="background: #f0f7ff;">CY</th>
-                        <th rowspan="2">Container</th>
-                        <th rowspan="2">Jumlah</th>
-                        <th rowspan="2">Remarks</th>
-                        <th colspan="2" style="text-align: center;">Status</th>
-                        <th rowspan="2">Submit</th>
-                    </tr>
-                    <tr>
-                        <th style="background: #f0f7ff;">Open</th>
-                        <th style="background: #f0f7ff;">Closing (Date Time)</th>
-                        <th class="acc">Accept</th>
-                        <th class="rej">Reject</th>
-                    </tr>
-                </thead>
-                <tbody id="vendorOrderBody"></tbody>
-            </table>
-        </div>
-    </div>
-`;
-    
-    const ordersToRespond = state.orders.filter(o => 
-        o.vendor === vendor && 
-        (o.summary_status === 'Pending' || o.summary_status === 'Partial')
-    ).reverse();
-
-    const tbody = document.getElementById("vendorOrderBody");
-    
-    if (ordersToRespond.length === 0) {
-        tbody.innerHTML = `<tr><td colspan="16">Tidak ada order yang perlu direspons.</td></tr>`;
-        return;
-    }
-
-    let rowsHtml = "";
-    
-    ordersToRespond.forEach((order, orderIdx) => {
-        const containers = state.containers[order.order_id] || [];
-        const sizes = ["20ft", "40ft/HC", "Combo"].filter(s => 
-            (s === "20ft" && order.jml_20ft > 0) || 
-            (s === "40ft/HC" && order.jml_40ft > 0) || 
-            (s === "Combo" && order.jml_combo > 0)
-        );
-        const rowSpan = sizes.length;
-
-        sizes.forEach((sz, sizeIdx) => {
-            const total = (sz === "20ft") ? order.jml_20ft : (sz === "40ft/HC" ? order.jml_40ft : order.jml_combo);
-            const groupAcc = containers.filter(c => c.size === sz && c.accept === true).length;
-            const groupRej = containers.filter(c => c.size === sz && c.accept === false).length;
-
-            rowsHtml += `<tr>`;
-            if (sizeIdx === 0) {
-                rowsHtml += `
-                    <td rowspan="${rowSpan}">${orderIdx + 1}</td>
-                    <td rowspan="${rowSpan}">${order.no_dn.join('<br>')}</td>
-                    <td rowspan="${rowSpan}">${order.vendor}</td>
-                    <td rowspan="${rowSpan}">${formatDisplayDate(order.tgl_stuffing)}</td>
-                    <td rowspan="${rowSpan}">${order.shipping_point || '-'}</td>
-                    <td rowspan="${rowSpan}">${order.pod || '-'}</td>
-                    <td rowspan="${rowSpan}">${order.terminal || '-'}</td>
-                    <td rowspan="${rowSpan}">${order.depo || '-'}</td>
-                    <td rowspan="${rowSpan}">${order.open_cy ? formatDisplayDate(order.open_cy) : '-'}</td>
-                    <td rowspan="${rowSpan}">${fmtDT(order.closing_date, order.closing_time)}</td>
-                `;
-            }
-            rowsHtml += `
-                <td>${sz}</td>
-                <td>${total}</td>
-            `;
-            if (sizeIdx === 0) {
-                rowsHtml += `<td rowspan="${rowSpan}">${order.remarks || '-'}</td>`;
-            }
-            rowsHtml += `
-                <td class="acc"><div class="accept-display" data-order-id="${order.order_id}" data-size="${sz}">${groupAcc}</div></td>
-                <td class="rej"><input type="number" class="input-reject" data-order-id="${order.order_id}" data-size="${sz}" value="${groupRej}" max="${total}"></td>
-            `;
-            if (sizeIdx === 0) {
-                rowsHtml += `<td rowspan="${rowSpan}"><button class="btn primary" data-order-id-submit="${order.order_id}">Submit</button></td>`;
-            }
-            rowsHtml += `</tr>`;
-        });
-    });
-
-    tbody.innerHTML = rowsHtml;
-
-    // ✅ REVISI: Event listener untuk input REJECT (BUKAN ACCEPT) - auto calculate Accept
-    tbody.querySelectorAll('.input-reject').forEach(input => {
-        input.addEventListener('input', (e) => {
-            const orderId = e.target.dataset.orderId;
-            const sz = e.target.dataset.size;
-            const total = parseInt(e.target.getAttribute('max'));
-            let val = parseInt(e.target.value) || 0;
-            
-            if (val < 0) val = 0;
-            if (val > total) val = total;
-            e.target.value = val;
-
-            // ✅ Auto-calculate ACCEPT dari REJECT
-            const acceptDisplay = tbody.querySelector(`.accept-display[data-order-id="${orderId}"][data-size="${sz}"]`);
-            if (acceptDisplay) acceptDisplay.textContent = total - val;
-        });
-    });
-    
-    // Event listener untuk tombol Submit (Poin 2: Terlempar ke Add Detail)
-    tbody.querySelectorAll('button[data-order-id-submit]').forEach(btn => {
-        btn.onclick = () => {
-            const oid = btn.dataset.orderIdSubmit;
-            const order = state.orders.find(o => o.order_id === oid);
-            const containers = state.containers[oid] || [];
-            
-            // Ambil input reject dari elemen UI
-            tbody.querySelectorAll(`.input-reject[data-order-id="${oid}"]`).forEach(inp => {
-                const sz = inp.dataset.size;
-                const rejQty = parseInt(inp.value) || 0;
-                const targetConts = containers.filter(c => c.size === sz && c.accept === null);
-                
-                targetConts.forEach((c, idx) => {
-                    if (idx < rejQty) {
-                        c.accept = false;
-                        c.status = "Reject";
-                    } else {
-                        c.accept = true;
-                        c.status = "Confirm Order"; 
-                    }
-                });
-            });
-
-            updateOrderSummary(oid);
-            saveState();
-            
-            render(); 
-            toast("Order berhasil disubmit. Data Accept otomatis pindah ke List Orderan (Add Detail).");
-        };
-    });
-}
-
 /* ===================== REVISI 5: ADMIN STATUS (EDIT/HAPUS & SHIFT) ===================== */
 
 function buildStatusTable() {
@@ -7846,28 +7602,43 @@ function saveInlineDetails(orderId) {
 }
 // ... (Baris terakhir kode app.js Anda saat ini) ...
 
-// --- TAMBAHKAN KODE NOMOR 3 DI SINI (DI LUAR FUNGSI APAPUN) ---
+// --- FUNGSI SINKRONISASI FIREBASE (VERSI FINAL) ---
 async function syncDataFromFirebase() {
   try {
-    const querySnapshot = await getDocs(collection(db, "orders"));
+    // Gunakan window.db agar tidak undefined
+    if (!window.db) {
+        console.log("⏳ Menunggu koneksi database...");
+        return;
+    }
+
+    const { collection, getDocs } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
+    const querySnapshot = await getDocs(collection(window.db, "orders"));
     const cloudOrders = [];
+    
     querySnapshot.forEach((doc) => {
-      cloudOrders.push(doc.data());
+      const data = doc.data();
+      cloudOrders.push(data);
+      // Restore data container ke state
+      if (data.order_id && data.containers) {
+        state.containers[data.order_id] = data.containers;
+      }
     });
     
     if (cloudOrders.length > 0) {
-      // Urutkan data berdasarkan waktu jika perlu, lalu masukkan ke state
       state.orders = cloudOrders;
       saveState();
-      render(); // Render ulang UI dengan data terbaru dari Cloud
+      render(); 
+      console.log("✅ Data sinkron! Total:", cloudOrders.length);
     }
   } catch (e) {
-    console.log("Gagal sinkron awal:", e);
+    console.error("❌ Gagal sinkron awal:", e);
   }
-}
+} 
 
-// Jalankan otomatis jika user sudah login
-if (state.authenticated) {
-  syncDataFromFirebase();
-}
-// -------------------------------------------------------------
+// Jalankan otomatis dengan interval pengecekan database siap
+const readyCheck = setInterval(() => {
+    if (window.db && state.authenticated) {
+        syncDataFromFirebase();
+        clearInterval(readyCheck);
+    }
+}, 1000);
