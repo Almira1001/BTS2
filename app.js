@@ -4459,6 +4459,7 @@ function showVendorAvailabilityModal(dateStr) {
     closeBtnClass: 'primary',
 // GANTI BAGIAN onClose DI DALAM showVendorAvailabilityModal
 // GANTI BAGIAN onClose DI DALAM showVendorAvailabilityModal (Baris ~4455)
+// CARI BAGIAN onClose DI DALAM showVendorAvailabilityModal
 onClose: async () => {
   const a20 = Number(document.getElementById("modal_av20").value||0);
   const a40 = Number(document.getElementById("modal_av40").value||0);
@@ -4466,30 +4467,33 @@ onClose: async () => {
   
   const availabilityData = {"20ft": a20, "40ft/HC": a40, "Combo": aCombo};
 
-  // 1. Update di tampilan lokal
+  // 1. Simpan di laptop (Lokal)
   state.availability[dateStr] = state.availability[dateStr] || {};
   state.availability[dateStr][vendor] = availabilityData;
 
-  // 2. KIRIM LANGSUNG KE FIREBASE (Jalur window.db)
+  // 2. Simpan ke Google Cloud (Firebase) - JALUR PASTI BERHASIL
   try {
-    // Pastikan koneksi tersedia
     const currentDb = window.db; 
-    if (!currentDb) throw new Error("Koneksi Database (window.db) hilang!");
+    if (!currentDb) throw new Error("Koneksi Google belum siap");
 
+    // Import fungsi yang dibutuhkan langsung di sini
     const { doc, setDoc } = await import("https://www.gstatic.com/firebasejs/10.8.1/firebase-firestore.js");
     
-    // Simpan dengan ID Unik: Tanggal_NamaVendor
-    await setDoc(doc(currentDb, "availability", `${dateStr}_${vendor}`), {
+    // Gunakan setDoc ke document spesifik, bukan collection()
+    // ID Document: TANGGAL_NAMA-VENDOR (Contoh: 2026-02-24_PT-CMI)
+    const docId = `${dateStr}_${vendor.replace(/\s+/g, '-')}`;
+    
+    await setDoc(doc(currentDb, "availability", docId), {
       vendor: vendor,
       date: dateStr,
       ...availabilityData,
       lastUpdate: new Date().toISOString()
     });
 
-    toast(`✅ Berhasil! Ketersediaan ${vendor} tersimpan di Cloud.`);
+    toast(`✅ Berhasil! Data Cloud terupdate.`);
   } catch (e) {
-    console.error("🔴 Gagal kirim ke Google:", e);
-    toast("⚠️ Gagal sinkron ke Cloud (Cek koneksi internet)");
+    console.error("🔴 Detail Error:", e);
+    toast("⚠️ Simpan ke Cloud Gagal, tapi tersimpan di Lokal.");
   }
   
   saveState();
