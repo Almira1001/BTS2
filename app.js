@@ -6848,39 +6848,6 @@ function renderContainerRevo() {
 }
 
 /* ===================== VENDOR: ORDERAN (Accept/Reject Order - REVISI 1) ===================== */
-
-// --- BARU: Helper untuk menangani Aksi Accept/Reject di Modal Detail Kontainer ---
-function handleContainerAction(orderId, containerIndex, action) {
-    const order = state.orders.find(o => o.order_id === orderId);
-    if (!order || !state.containers[orderId] || !state.containers[orderId][containerIndex]) return;
-    
-    const c = state.containers[orderId][containerIndex];
-    const isAccept = action === 'accept';
-
-    if (isAccept) {
-        c.status = STATUS_TRUCKING.find(s => s.toLowerCase() === 'confirm order') || 'Confirm Order';
-    } else {
-        c.status = STATUS_TRUCKING.find(s => s.toLowerCase() === 'reject') || 'Reject';
-    }
-    
-    c.accept = isAccept;
-    
-    state.notifications.push({
-        id: genId("NOTIF"),
-        message: `${state.vendor_name} merespon kontainer ${c.size} di DN ${(order.no_dn || []).join(' & ')}: ${isAccept ? 'Accepted' : 'Rejected'}.`,
-        timestamp: new Date().toISOString(),
-        isRead: false,
-        role: 'admin',
-        relatedOrder: orderId
-    });
-    
-    updateOrderSummary(orderId);
-    saveState();
-    closeModal();
-    renderVendorOrderan();
-    toast(`Kontainer #${c.no} di- ${isAccept ? 'Accept' : 'Reject'}.`);
-}
-
 // --- BARU: Helper untuk menampilkan Modal Detail Kontainer (Dipanggil dari Tabel Rekap Vendor) ---
 function showContainerActionModal(orderId, containerIndex) {
     const order = state.orders.find(o => o.order_id === orderId);
