@@ -2335,13 +2335,6 @@ body.login-page .overlay-panel p {
   font-size: 0.85rem;
 }
 
-/* === REKAP TABLE (ORDER TO EMKL) === */
-#rekapTable th,
-#rekapTable td {
-  /* Sudah diatur oleh .table.rekap di atas */
-  /* font-size: 0.8rem;
-  padding: 6px 8px; */
-}
 
 #rekapTable td[rowspan] {
   vertical-align: middle;
